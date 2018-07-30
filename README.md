@@ -1,0 +1,2 @@
+# ngxManager
+Nginx Servers Management
