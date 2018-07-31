@@ -228,8 +228,8 @@ Adminer Enabled: {}
     def phpConfig(self):
         with open("/etc/nginx/conf.d/php.conf", "w+") as f:
             f.write("""location ~ \.php$ {{
-	snippets/fastcgi-php.conf;
-	unix:/run/php/{}.sock;
+	include snippets/fastcgi-php.conf;
+	fastcgi_pass unix:/run/php/{}.sock;
 	}}
 location ~ /\.ht {{
         deny all;
