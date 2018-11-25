@@ -40,14 +40,14 @@ class NgxManager:
         while(True):
             call(['clear'])
             print(""" 
-#                 {}ngxManager v{} - {}Nginx Management Tools
-#       {}github: {}https://github.com/xhimanshuz/ngxManager
+#       {}ngxManager {}v{}-pre-alpha - {}Nginx Management Tools
+#       {}Github: {}https://github.com/xhimanshuz/ngxManager
 #
 #
 #   {}I developed this project to run multiple sites in 
 #   my Raspberry Pi with little efforts but you can use 
 #   it for your own way. 
-#   {}***Too many bugs but still working great.***{}\n""".format(GREEN, self.ver, WHITE , WHITE, GREEN, YELLOW, RED, WHITE))
+#   {}***Too many bugs but still working great.***{}\n""".format(GREEN, RED, self.ver, WHITE , WHITE, GREEN, YELLOW, RED, WHITE))
 
             print("""{}** NGINX SERVER MANAGEMENT ** {}
 1. Display Servers
@@ -98,7 +98,7 @@ class NgxManager:
         call(['clear'])
         tuple = self.sqliteToTuple(None, "all")
         if len(tuple) is 0:
-            print("EMPTY..!")
+            print("EMPTY..!" + WHITE + "\nPress any key to continue...")
             return tuple
         for i, t in enumerate(tuple):
             print("{}{}. {}{}{}".format(WHITE, i+1, GREEN, t[0], WHITE))
@@ -238,14 +238,14 @@ Adminer Enabled: {}
     def nginxReload(self):
         status = getstatusoutput("nginx -s reload")
         if status[0] == 127:
-            print(RED + "Error: Nginx not found, try.\n" + YELLOW + "apt install nginx\n" + WHITE + status[1])
+            print(RED + "Error: Nginx not found, try.\n" + YELLOW + "apt install nginx\n" + WHITE + status[1] + "\nPress Any Key to continue...")
             exit()
         elif status[1]:
             print(RED + "Error: " + WHITE + status[1])
             exit()
         else:
             if not status[0]:
-                print(GREEN + "Succcessfully Reloaded..." + WHITE + "Press Any Key to continue...")
+                print(GREEN + "Succcessfully Reloaded, " + WHITE + "Press Any Key to continue...")
 
     # Delete Server
     def deleteServer(self):
@@ -322,15 +322,15 @@ location ~ /\.ht {{
     def about(self):
         call(['clear'])
         print(""" 
-#                 {}ngxManager v{} - {}Nginx Management Tools
+#                 {}ngxManager {}v{}-pre-alpha - {}Nginx Management Tools
 #       Developer: {}Himanshu Rastogi
 #       {}Email: {}hi.himanshu14@gmail.com
-#       {}github: {}https://github.com/xhimanshuz/ngxManager
+#       {}Github: {}https://github.com/xhimanshuz/ngxManager
 #
 #   {}I developed this project to run multiple sites in 
 #   my Raspberry Pi with little efforts but you can use 
 #   it for your own way. 
-#   {}***Too many bugs but still works great.***{}""".format(GREEN, self.ver, WHITE, RED, WHITE, YELLOW, WHITE, GREEN, YELLOW, RED, WHITE))
+#   {}***Too many bugs but still works great.***{}""".format(GREEN, RED, self.ver, WHITE, RED, WHITE, YELLOW, WHITE, GREEN, YELLOW, RED, WHITE + "\nPress any key to continue..."))
 
     # Check current version on github
     def updateChecking(self):
@@ -338,13 +338,13 @@ location ~ /\.ht {{
         try:
             gitVersion = urlopen("https://raw.githubusercontent.com/xhimanshuz/ngxManager/master/.version", timeout=3).read()
             if float(gitVersion) > self.ver:
-                ch = str(input(GREEN + "New Version" + YELLOW + " {} " + GREEN + "available, Do you want update?" + WHITE))
+                ch = str(input(GREEN + "New Version" + YELLOW + " {}-pre-alpha " + GREEN + "available, Do you want update?" + WHITE))
                 if(ch == 'y'):
                     self.updateVersion()
                 else:
                     return
             else:
-                print(GREEN + "This Version" + RED + " v{} ".format(self.ver) + GREEN + "is latest" + WHITE)
+                print(GREEN + "This Version" + RED + " v{}-pre-alpha ".format(self.ver) + GREEN + "is latest\n" + WHITE + "Press any key to continue...")
         except:
             print(RED + "[!] Error in checking Update... Check your internet connection!" + WHITE)
 
