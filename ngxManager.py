@@ -4,6 +4,11 @@
 # Himanshu Rastogi <hi.himanshu14@gmail.com> --> AUTHOR
 # ...?
 
+from subprocess import call, getstatusoutput, PIPE, Popen # For terminal process handling
+import sqlite3                                            # For sqlite handling
+import os.path                                            # For file handling
+from time import sleep                                    # To hold screen
+from urllib.request import urlopen                        # To fecth new version
 
 # GLOBAL VAIRABLE FOR COLOR
 RED = "\033[91m"
@@ -11,50 +16,84 @@ WHITE = "\033[00m"
 GREEN = "\033[92m"
 YELLOW = "\033[93m"
 
-from subprocess import call, getstatusoutput
-import sqlite3
-import os.path
-
 
 class NgxManager:
     def __init__(self):
-        self.dbname = 'db.db'
-        if(os.path.isfile(self.dbname)):
+        self.ver = 0.2  # Current version
+        self.updateChecking() #Check for new update
+        self.currentPath = os.path.dirname(os.path.realpath(__file__)) #Settingup current path of file
+        self.dbname = self.currentPath + '/db.db'   #Settingup database file with path
+        print(YELLOW + "Database Location: " + self.dbname + WHITE)
+        if(os.path.isfile(self.dbname)):    #Checking is Database exist or not
             print("Database Exist")
         else:
-            self.createDB()
-        self.php = self.getPhpService()
+            self.createDB() # Creating Databse if not exist
+        self.php = self.getPhpService() # Check available php Version 
         if(self.php is 'not found'):
             print('PHP service not found, Please install!')
-        self.phpConfig()
-
+        self.nginxConfig()  # configure /etc/nginx/nginx.conf
+        self.phpConfig()    # configure php support for nginx
+        sleep(1)    # wait for 1 sec to display message
+    #Choose Option
     def choose(self):
         ch = None
         while(True):
+            call(['clear'])
+            print(""" 
+#                 {}ngxManager v{} - {}Nginx Management Tools
+#       {}github: {}https://github.com/xhimanshuz/ngxManager
+#
+#
+#   {}I developed this project to run multiple sites in 
+#   my Raspberry Pi with little efforts but you can use 
+#   it for your own way. 
+#   {}***Too many bugs but still working great.***{}\n""".format(GREEN, self.ver, WHITE , WHITE, GREEN, YELLOW, RED, WHITE))
+
             print("""{}** NGINX SERVER MANAGEMENT ** {}
 1. Display Servers
 2. Add Server
 3. Delete Server
 4. Nginx Reload
 5. About
+6. Check Update
 0. Exit
 {}Enter Your Choice {}""".format(GREEN, WHITE, RED, YELLOW))
-            ch = int(input("> "))
+            try:
+                ch = int(input("> "))
+            except (ValueError, TypeError):
+                print(RED + "Invalid input please try again..." + WHITE)
+                input()
+                continue
             if ch == 0:
                 exit()
+            elif ch > 6:
+                print(RED + "Invalid input {} please try again...".format(ch) + WHITE)
+                input()
+                continue
             self.choiceOption()[ch]()
             input()
             call(['clear'])
 
+    # Calling function according to input
     def choiceOption(self):
         return {
             1: self.displayServersDetail,
             2: self.addServer,
             3: self.deleteServer,
             4: self.nginxReload,
-            5: self.about
+            5: self.about,
+            6: self.updateChecking
         }
 
+    # Configure nginx file
+    def nginxConfig(self):
+        with open("/etc/nginx/nginx.conf", 'r') as f:
+            str = f.read()
+        str = str.replace("include /etc/nginx/conf.d/*.conf;", "#include /etc/nginx/conf.d/*.conf;")
+        with open("/etc/nginx/nginx.conf", "w") as f:
+            f.write(str)
+
+    # Display added server list
     def displayServers(self):
         call(['clear'])
         tuple = self.sqliteToTuple(None, "all")
@@ -63,7 +102,11 @@ class NgxManager:
             return tuple
         for i, t in enumerate(tuple):
             print("{}{}. {}{}{}".format(WHITE, i+1, GREEN, t[0], WHITE))
-        ch = int(input("{}Enter Your Choice: {}".format(RED, WHITE)))
+        try:
+            ch = int(input("{}Enter Your Choice: {}".format(RED, WHITE)))
+        except ValueError:
+            print(RED + "Invalid input, please try again." + WHITE)
+            return []
         if ch > len(tuple):
             print('{}Invalid Choice!'.format(RED))
             input("Try agin!{}".format(WHITE))
@@ -73,6 +116,7 @@ class NgxManager:
             tuple = self.sqliteToTuple(tuple[ch-1][0], 'one')
             return tuple
 
+    # Display selected server detail
     def displayServersDetail(self):
         tuple = self.displayServers()
         if(len(tuple) is not 0):
@@ -83,10 +127,13 @@ PHP Enabled: {}
 Adminer Enabled: {}
 {}Press Any key to continue...{}""".format(GREEN, tuple[0], YELLOW, tuple[0], tuple[1], tuple[2], tuple[3], RED, YELLOW))
 
+    # Add server to SQL and nginx
     def addServer(self):
         print("Add Server")
-        tuple = self.inputConfigData()
-        self.fileMgr(tuple[0], 'add')
+        tuple = self.inputConfigData() # Add server detail
+        if(tuple is ''):
+            return
+        self.fileMgr(tuple[0], 'add') # Configure file according server name
         self.tupleToSqlite(tuple)
         print("*** Config FIle Created ***")
         filedata = self.configFile(tuple)
@@ -94,22 +141,28 @@ Adminer Enabled: {}
             f.write(filedata)
             print(
                 "Writed to /etc/nginx/sites-enabled/{}.conf".format(tuple[0]))
-
+    
+    # Input Server detail
     def inputConfigData(self):
-        self.serverName = str(input("Server Name: "))
-        self.port = int(input("Port: "))
-        self.phpEnable = str(input("Enable Php (Y/y): "))
-        if(self.phpEnable is 'Y' or self.phpEnable is 'y'):
-            self.phpEnable = True
-        else:
-            self.phpEnable = False
-        self.adminerEnable = str(input("Enable Adminer Support: "))
-        if(self.adminerEnable is 'Y' or self.adminerEnable is 'y'):
-            self.adminerEnable = True
-        else:
-            self.adminerEnable = False
-        return (self.serverName, self.port, self.phpEnable, self.adminerEnable)
+        try:
+            self.serverName = str(input("Server Name: "))
+            self.port = int(input("Port: "))
+            self.phpEnable = str(input("Enable Php (Y/y): "))
+            if(self.phpEnable is 'Y' or self.phpEnable is 'y'):
+                self.phpEnable = True
+            else:
+                self.phpEnable = False
+            self.adminerEnable = str(input("Enable Adminer Support: "))
+            if(self.adminerEnable is 'Y' or self.adminerEnable is 'y'):
+                self.adminerEnable = True
+            else:
+                self.adminerEnable = False
+            return (self.serverName, self.port, self.phpEnable, self.adminerEnable)
+        except ValueError:
+            print(RED + "Input Corret and each value" + WHITE)
+            return ''
 
+    # File handling
     def fileMgr(self, server, cmd):
         if cmd is 'add':
             print(call(['mkdir /var/www/{}'.format(server)], shell=True))
@@ -126,6 +179,7 @@ Adminer Enabled: {}
     #             f.write(filedata)
     #         print("Writed to /etc/nginx/sites-enabled/{}.conf".format(tuple[0]))
 
+    # Configure Nginx File
     def configFile(self, tuple):
         tuple = list(tuple)
         if not tuple[2]:
@@ -154,8 +208,8 @@ Adminer Enabled: {}
         print(configFileData)
         return configFileData
 
+    # Conver sqlite data to tuple
     def sqliteToTuple(self, server, mode):
-        # print("Mode: ", mode)
         if mode is "all":
             con = sqlite3.connect(self.dbname)
             cur = con.cursor()
@@ -171,6 +225,7 @@ Adminer Enabled: {}
             con.close()
             return tuple
 
+    # Convert Tuple to Sqlite data
     def tupleToSqlite(self, tuple):
         print("Tuple: ", tuple)
         con = sqlite3.connect(self.dbname)
@@ -179,9 +234,20 @@ Adminer Enabled: {}
         con.commit()
         con.close()
 
+    # Reload Nginx Server
     def nginxReload(self):
-        print(call(['sudo', 'nginx', '-s', 'reload']))
+        status = getstatusoutput("nginx -s reload")
+        if status[0] == 127:
+            print(RED + "Error: Nginx not found, try.\n" + YELLOW + "apt install nginx\n" + WHITE + status[1])
+            exit()
+        elif status[1]:
+            print(RED + "Error: " + WHITE + status[1])
+            exit()
+        else:
+            if not status[0]:
+                print(GREEN + "Succcessfully Reloaded..." + WHITE + "Press Any Key to continue...")
 
+    # Delete Server
     def deleteServer(self):
         tuple = self.displayServers()
         if(len(tuple) is not 0):
@@ -191,6 +257,7 @@ Adminer Enabled: {}
                 self.dropColumn(tuple[0])
                 self.fileMgr(tuple[0], 'rm')
 
+    # Create Sqlite database
     def createDB(self):  # DONE
         con = sqlite3.connect(self.dbname)
         cur = con.cursor()
@@ -199,13 +266,15 @@ Adminer Enabled: {}
         con.commit()
         con.close()
 
+    # Perform Delete operation in SQLite Database
     def dropColumn(self, column):
         con = sqlite3.connect(self.dbname)
         cur = con.cursor()
         cur.execute("DELETE FROM ngxManager where servername = ?", (column,))
         con.commit()
-        print("{} Deleted".format(column))
+        print(Red + "{} Deleted".format(column) + WHITE)
         con.close()
+
     # UNDER DEVELOPMENT
     # def updateColumn(self, column):
     #     tuple = self.inputConfigData()
@@ -225,16 +294,22 @@ Adminer Enabled: {}
     #     print("TEMP: ", temp)
     #     return temp
 
+    # Configure nginx file for PHP Support
     def phpConfig(self):
-        with open("/etc/nginx/conf.d/php.conf", "w+") as f:
-            f.write("""location ~ \.php$ {{
+        try:
+            with open("/etc/nginx/conf.d/php.conf", "w+") as f:
+                f.write("""location ~ \.php$ {{
 	include snippets/fastcgi-php.conf;
 	fastcgi_pass unix:/run/php/{}.sock;
 	}}
 location ~ /\.ht {{
         deny all;
          }}""".format(self.php))
+        except FileNotFoundError:
+            print("{}PHP not install!\nExiting... {}".format(RED, WHITE))
+            exit(0)
 
+    # Get PHP current Version if exist otherwise return 'php'
     def getPhpService(self):
         php = getstatusoutput(
             'service --status-all | grep php[5-9].[0-9]-[f]*')[1].replace("[ + ]", "").strip()
@@ -243,24 +318,52 @@ location ~ /\.ht {{
         else:
             return php
 
+    # Display about NgxManager Detail
     def about(self):
         call(['clear'])
         print(""" 
-#                 {}ngxManager - {}Nginx Management Tools
-#       Name: {}Himanshu Rastogi
+#                 {}ngxManager v{} - {}Nginx Management Tools
+#       Developer: {}Himanshu Rastogi
 #       {}Email: {}hi.himanshu14@gmail.com
-#       {}github: {}https://github.com/xhimanshuz
+#       {}github: {}https://github.com/xhimanshuz/ngxManager
 #
 #   {}I developed this project to run multiple sites in 
 #   my Raspberry Pi with little efforts but you can use 
 #   it for your own way. 
-#   {}***Too many bugs because it was developed in 1 day.***{}""".format(GREEN, WHITE, RED, WHITE, YELLOW, WHITE, GREEN, YELLOW, RED, WHITE))
+#   {}***Too many bugs but still works great.***{}""".format(GREEN, self.ver, WHITE, RED, WHITE, YELLOW, WHITE, GREEN, YELLOW, RED, WHITE))
 
+    # Check current version on github
+    def updateChecking(self):
+        print(GREEN + "Cheking for update..." + WHITE)
+        try:
+            gitVersion = urlopen("https://raw.githubusercontent.com/xhimanshuz/ngxManager/master/.version", timeout=3).read()
+            if float(gitVersion) > self.ver:
+                ch = str(input(GREEN + "New Version" + YELLOW + " {} " + GREEN + "available, Do you want update?" + WHITE))
+                if(ch == 'y'):
+                    self.updateVersion()
+                else:
+                    return
+            else:
+                print(GREEN + "This Version" + RED + " v{} ".format(self.ver) + GREEN + "is latest" + WHITE)
+        except:
+            print(RED + "[!] Error in checking Update... Check your internet connection!" + WHITE)
 
+    # Update latest version on github if exist
+    def updateVersion(self):
+        if (getstatusoutput("wget https://raw.githubusercontent.com/xhimanshuz/ngxManager/master/ngxManager.py -O ngxManager.py")[0]):
+            print(RED + "[!]" + "Error in update, please check your connection" + WHITE)
+        else:
+            print(GREEN + "Update Successfully,{} restarting...".format(YELLOW) + WHITE)
+            call(["sudo", "python3", "./ngxManager.py"])
+
+# Check for Super User permision
 user = os.getuid()  # ROOT CHECK
 if user is 0:
-    ngx = NgxManager()
-    ngx.choose()
+    try:
+        ngx = NgxManager()
+        ngx.choose()
+    except KeyboardInterrupt:
+        print(YELLOW + " Interruption, Exiting...")
 else:
     print("{}[!] {}ngxManager {}must run as {}root".format(
         RED, GREEN, YELLOW, RED))
