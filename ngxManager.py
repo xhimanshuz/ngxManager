@@ -7,7 +7,6 @@
 from subprocess import call, getstatusoutput, PIPE, Popen # For terminal process handling
 import sqlite3                                            # For sqlite handling
 import os.path                                            # For file handling
-from time import sleep                                    # To hold screen
 from urllib.request import urlopen                        # To fecth new version
 
 # GLOBAL VAIRABLE FOR COLOR
@@ -33,7 +32,7 @@ class NgxManager:
             print('PHP service not found, Please install!')
         self.nginxConfig()  # configure /etc/nginx/nginx.conf
         self.phpConfig()    # configure php support for nginx
-        sleep(1)    # wait for 1 sec to display message
+
     #Choose Option
     def choose(self):
         ch = None
@@ -135,12 +134,12 @@ Adminer Enabled: {}
             return
         self.fileMgr(tuple[0], 'add') # Configure file according server name
         self.tupleToSqlite(tuple)
-        print("*** Config FIle Created ***")
+        print(RED + "*** Config FIle Created ***" + WHITE)
         filedata = self.configFile(tuple)
         with open('/etc/nginx/sites-enabled/{}.conf'.format(tuple[0]), 'w+') as f:
             f.write(filedata)
-            print(
-                "Writed to /etc/nginx/sites-enabled/{}.conf".format(tuple[0]))
+        print("{}Config file generated at: {}/etc/nginx/sites-enabled/{}.conf".format(GREEN, YELLOW, tuple[0]))
+        self.nginxReload()
     
     # Input Server detail
     def inputConfigData(self):
@@ -167,7 +166,8 @@ Adminer Enabled: {}
         if cmd is 'add':
             print(call(['mkdir /var/www/{}'.format(server)], shell=True))
         else:
-            print(call(['rm -rf {}'.format(server)], shell=True))
+            print(call(['rm', '/etc/nginx/sites-enabled/{}.conf'.format(server)]))
+            print(call(['rm -rf /var/www/{}'.format(server)], shell=True))
 
     # NDER DEVELOPMENT
     # def modifyServer(self):
@@ -227,7 +227,6 @@ Adminer Enabled: {}
 
     # Convert Tuple to Sqlite data
     def tupleToSqlite(self, tuple):
-        print("Tuple: ", tuple)
         con = sqlite3.connect(self.dbname)
         cur = con.cursor()
         cur.execute("INSERT INTO ngxManager VALUES(?,?,?,?)", tuple)
@@ -272,7 +271,7 @@ Adminer Enabled: {}
         cur = con.cursor()
         cur.execute("DELETE FROM ngxManager where servername = ?", (column,))
         con.commit()
-        print(Red + "{} Deleted".format(column) + WHITE)
+        print(RED + "{} Deleted".format(column) + WHITE)
         con.close()
 
     # UNDER DEVELOPMENT
